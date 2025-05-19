@@ -4,6 +4,8 @@ interface TreeNode {
   id: string;
   parent: string | null;
   label: string;
+  isNew?: boolean;
+  isRemoving?: boolean;
 }
 
 interface TreeState {

@@ -7,6 +7,20 @@ interface Item {
   id: string;
   parent: string | null;
   label: string;
+  isNew?: boolean;
+  isRemoving?: boolean;
+}
+
+interface TreeTableRow {
+  id: string;
+  parent: string | null;
+  label: string;
+  index: number;
+  category: string;
+  children: TreeTableRow[];
+  level: number;
+  isNew?: boolean;
+  isRemoving?: boolean;
 }
 
 const treeStore = useTreeStore();
@@ -26,16 +40,6 @@ onMounted(() => {
   treeStore.initialize(items);
   pushHistory();
 });
-
-interface TreeTableRow {
-  id: string;
-  parent: string | null;
-  label: string;
-  index: number;
-  category: string;
-  children: TreeTableRow[];
-  level: number;
-}
 
 // --- История изменений ---
 const history = ref<Item[][]>([]);
@@ -110,12 +114,20 @@ const flatRows = computed(() => renderRows(treeRows.value));
 function addChild(parentId: string | null) {
   // Генерируем уникальный id
   const newId = Date.now().toString() + Math.random().toString(36).slice(2, 6);
-  treeStore.items.push({ id: newId, parent: parentId ?? null, label: 'Новый элемент' });
+  const newItem = { id: newId, parent: parentId ?? null, label: 'Новый элемент', isNew: true };
+  treeStore.items.push(newItem);
   pushHistory();
   // Автоматически раскрываем родителя
   if (typeof parentId === 'string' && !expanded.value.includes(parentId)) {
     expanded.value.push(parentId);
   }
+  // Удаляем флаг isNew через время анимации
+  setTimeout(() => {
+    const item = treeStore.items.find(i => i.id === newId);
+    if (item) {
+      delete item.isNew;
+    }
+  }, 400);
 }
 
 function removeItem(id: string) {
@@ -124,10 +136,23 @@ function removeItem(id: string) {
     const children = treeStore.items.filter(i => i.parent === itemId);
     for (const child of children) removeRecursive(child.id);
     const idx = treeStore.items.findIndex(i => i.id === itemId);
-    if (idx !== -1) treeStore.items.splice(idx, 1);
+    if (idx !== -1) {
+      const item = treeStore.items[idx];
+      if (item) {
+        item.isRemoving = true;
+        // Удаляем элемент после завершения анимации
+        setTimeout(() => {
+          const newIdx = treeStore.items.findIndex(i => i.id === itemId);
+          if (newIdx !== -1) {
+            treeStore.items.splice(newIdx, 1);
+            pushHistory(); // Перемещаем pushHistory сюда, чтобы история обновлялась после удаления
+          }
+        }, 400);
+      }
+    }
   }
   removeRecursive(id);
-  pushHistory();
+  // Убираем pushHistory отсюда, так как теперь он вызывается после удаления
 }
 
 function updateLabel(id: string, newLabel: string) {
@@ -151,22 +176,21 @@ watch(() => treeStore.items, () => {
     <div class="q-mb-md row items-center q-gutter-sm">
       <q-btn :label="editMode ? 'Режим просмотра' : 'Режим редактирования'" color="primary"
         @click="editMode = !editMode" />
-
     </div>
     <q-table :rows="flatRows" :columns="columns" row-key="id" hide-pagination flat :rows-per-page-options="[0]"
       class="tree-table">
       <template #body-cell-index="props">
-        <q-td :props="props">
+        <q-td :props="props" :class="{ 'row-enter': props.row.isNew, 'row-leave': props.row.isRemoving }">
           {{ props.row.index }}
         </q-td>
       </template>
       <template #body-cell-category="props">
-        <q-td :props="props">
+        <q-td :props="props" :class="{ 'row-enter': props.row.isNew, 'row-leave': props.row.isRemoving }">
           {{ props.row.category }}
         </q-td>
       </template>
       <template #body-cell-label="props">
-        <q-td :props="props">
+        <q-td :props="props" :class="{ 'row-enter': props.row.isNew, 'row-leave': props.row.isRemoving }">
           <div :style="{ paddingLeft: (props.row.level * 24) + 'px', display: 'flex', alignItems: 'center' }">
             <template v-if="props.row.children.length > 0">
               <q-btn dense flat round size="sm" :icon="isExpanded(props.row.id) ? 'expand_more' : 'chevron_right'"
@@ -194,5 +218,82 @@ watch(() => treeStore.items, () => {
 .tree-table {
   max-width: 900px;
   margin: 0 auto;
+}
+
+/* Анимации для строк таблицы */
+.tree-table tr {
+  transition: all 0.3s ease;
+}
+
+/* Анимация для кнопок */
+.q-btn {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.q-btn:hover {
+  transform: scale(1.1);
+}
+
+/* Анимация для иконки разворачивания/сворачивания */
+.q-btn[icon="expand_more"],
+.q-btn[icon="chevron_right"] {
+  transition: transform 0.3s ease;
+}
+
+/* Анимация для добавления строк */
+.row-enter {
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Анимация для удаления строк */
+.row-leave {
+  animation: fadeOut 0.4s ease-in;
+  position: relative;
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Анимация для редактирования текста */
+.q-input {
+  transition: all 0.3s ease;
+}
+
+.q-input:focus-within {
+  transform: scale(1.02);
+}
+
+/* Анимация для кнопок действий */
+.q-btn[icon="add"],
+.q-btn[icon="close"] {
+  opacity: 0.7;
+  transition: all 0.2s ease;
+}
+
+.q-btn[icon="add"]:hover {
+  opacity: 1;
+  color: var(--q-primary);
+}
+
+.q-btn[icon="close"]:hover {
+  opacity: 1;
+  color: var(--q-negative);
 }
 </style>
