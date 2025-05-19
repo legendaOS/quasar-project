@@ -1,8 +1,26 @@
+/**
+* Компонент для отображения и редактирования древовидной структуры данных
+* Реализует функционал:
+* - Отображение иерархической структуры в виде таблицы
+* - Добавление/удаление элементов
+* - Редактирование названий элементов
+* - История изменений с возможностью отмены/возврата действий
+* - Анимации для улучшения пользовательского опыта
+*/
+
 <script setup lang="ts">
 import { useTreeStore } from 'src/stores/TreeStore';
 import { onMounted, ref, computed, watch } from 'vue';
 import { QTable, QBtn, QInput } from 'quasar';
 
+/**
+ * Интерфейс для базового элемента дерева
+ * @property {string} id - Уникальный идентификатор элемента
+ * @property {string|null} parent - ID родительского элемента (null для корневых элементов)
+ * @property {string} label - Название элемента
+ * @property {boolean} [isNew] - Флаг нового элемента для анимации
+ * @property {boolean} [isRemoving] - Флаг удаляемого элемента для анимации
+ */
 interface Item {
   id: string;
   parent: string | null;
@@ -11,6 +29,10 @@ interface Item {
   isRemoving?: boolean;
 }
 
+/**
+ * Интерфейс для строки в таблице дерева
+ * Расширяет базовый Item дополнительными свойствами для отображения
+ */
 interface TreeTableRow {
   id: string;
   parent: string | null;
@@ -23,8 +45,10 @@ interface TreeTableRow {
   isRemoving?: boolean;
 }
 
+// Инициализация хранилища состояния
 const treeStore = useTreeStore();
 
+// Начальные данные для дерева
 const items: Item[] = [
   { id: "1", parent: null, label: "Айтем 1" },
   { id: "2", parent: "1", label: "Айтем 2" },
@@ -36,17 +60,21 @@ const items: Item[] = [
   { id: "8", parent: "4", label: "Айтем 8" }
 ];
 
+// Инициализация при монтировании компонента
 onMounted(() => {
   treeStore.initialize(items);
   pushHistory();
 });
 
-// --- История изменений ---
+// --- Управление историей изменений ---
 const history = ref<Item[][]>([]);
 const historyIndex = ref(0);
 
+/**
+ * Добавляет текущее состояние в историю изменений
+ * Удаляет "будущие" состояния при создании новой ветки истории
+ */
 function pushHistory() {
-  // Обрезаем "будущее" если делаем новое действие
   if (historyIndex.value < history.value.length - 1) {
     history.value = history.value.slice(0, historyIndex.value + 1);
   }
@@ -54,10 +82,16 @@ function pushHistory() {
   historyIndex.value = history.value.length - 1;
 }
 
-// --- Режим редактирования ---
+// --- Управление режимом редактирования ---
 const editMode = ref(false);
 
-// --- Построение дерева ---
+/**
+ * Рекурсивно строит строки таблицы из дерева элементов
+ * @param {string|null} parentId - ID родительского элемента
+ * @param {number} level - Уровень вложенности
+ * @param {Object} idxOffset - Счетчик для нумерации строк
+ * @returns {TreeTableRow[]} Массив строк таблицы
+ */
 function buildTreeTableRows(parentId: string | null, level = 0, idxOffset = { value: 1 }): TreeTableRow[] {
   return treeStore.items
     .filter(item => item.parent === parentId)
@@ -76,8 +110,10 @@ function buildTreeTableRows(parentId: string | null, level = 0, idxOffset = { va
     });
 }
 
+// Вычисляемое свойство для строк таблицы
 const treeRows = computed(() => buildTreeTableRows(null));
 
+// Конфигурация колонок таблицы
 const columns = [
   { name: 'index', label: '№ п/п', align: 'center' as const, field: 'index', style: 'width: 80px;' },
   { name: 'category', label: 'Категория', align: 'center' as const, field: 'category', style: 'width: 120px;' },
@@ -85,11 +121,22 @@ const columns = [
   { name: 'actions', label: '', align: 'center' as const, field: 'actions', style: 'width: 90px;' }
 ];
 
+// --- Управление развернутыми элементами ---
 const expanded = ref<string[]>([]);
 
+/**
+ * Проверяет, развернут ли элемент
+ * @param {string} id - ID элемента
+ * @returns {boolean} Результат проверки
+ */
 function isExpanded(id: string) {
   return expanded.value.includes(id);
 }
+
+/**
+ * Переключает состояние развернутости элемента
+ * @param {string} id - ID элемента
+ */
 function toggleExpand(id: string) {
   if (isExpanded(id)) {
     expanded.value = expanded.value.filter(eid => eid !== id);
@@ -98,6 +145,11 @@ function toggleExpand(id: string) {
   }
 }
 
+/**
+ * Рекурсивно формирует плоский список строк для отображения
+ * @param {TreeTableRow[]} rows - Массив строк
+ * @returns {TreeTableRow[]} Плоский список строк
+ */
 function renderRows(rows: TreeTableRow[]) {
   const result: TreeTableRow[] = [];
   for (const row of rows) {
@@ -109,20 +161,22 @@ function renderRows(rows: TreeTableRow[]) {
   return result;
 }
 
+// Вычисляемое свойство для плоского списка строк
 const flatRows = computed(() => renderRows(treeRows.value));
 
-// --- Редактирование ---
+// --- Функции редактирования ---
+/**
+ * Добавляет новый дочерний элемент
+ * @param {string|null} parentId - ID родительского элемента
+ */
 function addChild(parentId: string | null) {
-  // Генерируем уникальный id
   const newId = Date.now().toString() + Math.random().toString(36).slice(2, 6);
   const newItem = { id: newId, parent: parentId ?? null, label: 'Новый элемент', isNew: true };
   treeStore.items.push(newItem);
   pushHistory();
-  // Автоматически раскрываем родителя
   if (typeof parentId === 'string' && !expanded.value.includes(parentId)) {
     expanded.value.push(parentId);
   }
-  // Удаляем флаг isNew через время анимации
   setTimeout(() => {
     const item = treeStore.items.find(i => i.id === newId);
     if (item) {
@@ -131,8 +185,11 @@ function addChild(parentId: string | null) {
   }, 400);
 }
 
+/**
+ * Рекурсивно удаляет элемент и всех его потомков
+ * @param {string} id - ID удаляемого элемента
+ */
 function removeItem(id: string) {
-  // Рекурсивно удаляем элемент и всех потомков
   function removeRecursive(itemId: string) {
     const children = treeStore.items.filter(i => i.parent === itemId);
     for (const child of children) removeRecursive(child.id);
@@ -141,21 +198,24 @@ function removeItem(id: string) {
       const item = treeStore.items[idx];
       if (item) {
         item.isRemoving = true;
-        // Удаляем элемент после завершения анимации
         setTimeout(() => {
           const newIdx = treeStore.items.findIndex(i => i.id === itemId);
           if (newIdx !== -1) {
             treeStore.items.splice(newIdx, 1);
-            pushHistory(); // Перемещаем pushHistory сюда, чтобы история обновлялась после удаления
+            pushHistory();
           }
         }, 400);
       }
     }
   }
   removeRecursive(id);
-  // Убираем pushHistory отсюда, так как теперь он вызывается после удаления
 }
 
+/**
+ * Обновляет название элемента
+ * @param {string} id - ID элемента
+ * @param {string} newLabel - Новое название
+ */
 function updateLabel(id: string, newLabel: string) {
   const item = treeStore.items.find(i => i.id === id);
   if (item) {
@@ -164,12 +224,15 @@ function updateLabel(id: string, newLabel: string) {
   }
 }
 
-// Следим за изменениями в treeStore.items и не даём истории "раздуваться" при инициализации
+// Отслеживание изменений в хранилище
 const skipHistory = false;
 watch(() => treeStore.items, () => {
   if (!skipHistory) pushHistory();
 }, { deep: true });
 
+/**
+ * Отменяет последнее действие
+ */
 function undo() {
   if (historyIndex.value > 0) {
     historyIndex.value--;
@@ -180,6 +243,9 @@ function undo() {
   }
 }
 
+/**
+ * Возвращает отмененное действие
+ */
 function redo() {
   if (historyIndex.value < history.value.length - 1) {
     historyIndex.value++;
