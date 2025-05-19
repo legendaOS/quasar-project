@@ -1,32 +1,59 @@
 # Quasar App (quasar-project)
 
-A Quasar Project
+Проект на Quasar Framework
 
-## Install the dependencies
+## Установка зависимостей
 ```bash
 yarn
-# or
+# или
 npm install
 ```
 
-### Start the app in development mode (hot-code reloading, error reporting, etc.)
+### Запуск приложения в режиме разработки (hot-code reloading, error reporting, etc.)
 ```bash
 quasar dev
 ```
 
+### Запуск тестов
+```bash
+# Запуск всех тестов
+yarn test
+# или
+npm run test
+```
 
-### Lint the files
+### Проверка кода линтером
 ```bash
 yarn lint
-# or
+# или
 npm run lint
 ```
 
-
-### Build the app for production
+### Сборка приложения для продакшена
 ```bash
 quasar build
 ```
 
-### Customize the configuration
-See [Configuring quasar.config.js](https://v2.quasar.dev/quasar-cli-vite/quasar-config-js).
+### Настройка конфигурации
+См. [Configuring quasar.config.js](https://v2.quasar.dev/quasar-cli-vite/quasar-config-js).
+
+## Структура проекта
+```
+quasar-project/
+├── src/                    # Исходный код приложения
+│   ├── assets/            # Статические ресурсы (изображения, шрифты)
+│   ├── boot/              # Файлы инициализации
+│   ├── components/        # Vue компоненты
+│   ├── css/              # Глобальные стили
+│   ├── layouts/          # Шаблоны страниц
+│   ├── pages/            # Страницы приложения
+│   ├── router/           # Конфигурация маршрутизации
+│   ├── stores/           # Хранилища состояния (Pinia)
+│   └── App.vue           # Корневой компонент
+├── public/                # Публичные статические файлы
+├── .quasar/              # Сгенерированные файлы Quasar
+├── node_modules/         # Зависимости проекта
+├── quasar.config.ts      # Конфигурация Quasar
+├── package.json          # Зависимости и скрипты
+└── jest.config.cjs       # Конфигурация Jest для тестирования
+```
