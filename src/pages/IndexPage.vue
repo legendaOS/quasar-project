@@ -79,9 +79,10 @@ function buildTreeTableRows(parentId: string | null, level = 0, idxOffset = { va
 const treeRows = computed(() => buildTreeTableRows(null));
 
 const columns = [
-  { name: 'index', label: '№ п/п', align: 'left' as const, field: 'index', style: 'width: 80px;' },
-  { name: 'category', label: 'Категория', align: 'left' as const, field: 'category', style: 'width: 120px;' },
-  { name: 'label', label: 'Наименование', align: 'left' as const, field: 'label' }
+  { name: 'index', label: '№ п/п', align: 'center' as const, field: 'index', style: 'width: 80px;' },
+  { name: 'category', label: 'Категория', align: 'center' as const, field: 'category', style: 'width: 120px;' },
+  { name: 'label', label: 'Наименование', align: 'left' as const, field: 'label' },
+  { name: 'actions', label: '', align: 'center' as const, field: 'actions', style: 'width: 90px;' }
 ];
 
 const expanded = ref<string[]>([]);
@@ -169,6 +170,26 @@ watch(() => treeStore.items, () => {
   if (!skipHistory) pushHistory();
 }, { deep: true });
 
+function undo() {
+  if (historyIndex.value > 0) {
+    historyIndex.value--;
+    const state = history.value[historyIndex.value];
+    if (state) {
+      treeStore.resetItems(state);
+    }
+  }
+}
+
+function redo() {
+  if (historyIndex.value < history.value.length - 1) {
+    historyIndex.value++;
+    const state = history.value[historyIndex.value];
+    if (state) {
+      treeStore.resetItems(state);
+    }
+  }
+}
+
 </script>
 
 <template>
@@ -176,38 +197,57 @@ watch(() => treeStore.items, () => {
     <div class="q-mb-md row items-center q-gutter-sm">
       <q-btn :label="editMode ? 'Режим просмотра' : 'Режим редактирования'" color="primary"
         @click="editMode = !editMode" />
+      <!-- Кнопки возврата/отмены -->
+      <q-btn icon="undo" flat round class="q-ml-sm" :disable="historyIndex === 0" @click="undo" />
+      <q-btn icon="redo" flat round class="q-ml-xs" :disable="historyIndex === history.length - 1" @click="redo" />
     </div>
     <q-table :rows="flatRows" :columns="columns" row-key="id" hide-pagination flat :rows-per-page-options="[0]"
       class="tree-table">
+      <template #header="props">
+        <q-tr :props="props">
+          <q-th v-for="col in props.cols" :key="col.name" :props="props" class="header-bold">
+            {{ col.label }}
+          </q-th>
+        </q-tr>
+      </template>
       <template #body-cell-index="props">
-        <q-td :props="props" :class="{ 'row-enter': props.row.isNew, 'row-leave': props.row.isRemoving }">
+        <q-td :props="props" :class="{ 'row-enter': props.row.isNew, 'row-leave': props.row.isRemoving }"
+          style="text-align: center;">
           {{ props.row.index }}
         </q-td>
       </template>
       <template #body-cell-category="props">
-        <q-td :props="props" :class="{ 'row-enter': props.row.isNew, 'row-leave': props.row.isRemoving }">
-          {{ props.row.category }}
+        <q-td :props="props" :class="{ 'row-enter': props.row.isNew, 'row-leave': props.row.isRemoving }"
+          style="text-align: center;">
+          <div style="display: flex; align-items: center; justify-content: center;">
+            <template v-if="props.row.children.length > 0">
+              <q-btn dense flat round size="sm" :icon="isExpanded(props.row.id) ? 'expand_more' : 'chevron_right'"
+                @click.stop="toggleExpand(props.row.id)" class="q-mr-xs" />
+            </template>
+            <span style="font-weight: bold;">{{ props.row.category }}</span>
+          </div>
         </q-td>
       </template>
       <template #body-cell-label="props">
         <q-td :props="props" :class="{ 'row-enter': props.row.isNew, 'row-leave': props.row.isRemoving }">
           <div :style="{ paddingLeft: (props.row.level * 24) + 'px', display: 'flex', alignItems: 'center' }">
-            <template v-if="props.row.children.length > 0">
-              <q-btn dense flat round size="sm" :icon="isExpanded(props.row.id) ? 'expand_more' : 'chevron_right'"
-                @click.stop="toggleExpand(props.row.id)" class="q-mr-xs" />
-            </template>
             <template v-if="editMode">
               <q-input v-model="props.row.label" dense borderless style="min-width: 120px; max-width: 300px;"
                 @update:model-value="val => updateLabel(props.row.id, val as string)"
                 :style="props.row.children.length > 0 ? 'font-weight: bold' : ''" />
-              <q-btn icon="add" size="sm" flat round @click.stop="addChild(props.row.id)" class="q-ml-xs" />
-              <q-btn icon="close" size="sm" flat round color="negative" @click.stop="removeItem(props.row.id)"
-                class="q-ml-xs" />
             </template>
             <template v-else>
               <span :style="props.row.children.length > 0 ? 'font-weight: bold' : ''">{{ props.row.label }}</span>
             </template>
           </div>
+        </q-td>
+      </template>
+      <template #body-cell-actions="props">
+        <q-td :props="props" style="text-align: center; min-width: 80px;">
+          <template v-if="editMode">
+            <q-btn icon="add" size="sm" flat round @click.stop="addChild(props.row.id)" class="q-mr-xs" />
+            <q-btn icon="close" size="sm" flat round color="negative" @click.stop="removeItem(props.row.id)" />
+          </template>
         </q-td>
       </template>
     </q-table>
@@ -295,5 +335,10 @@ watch(() => treeStore.items, () => {
 .q-btn[icon="close"]:hover {
   opacity: 1;
   color: var(--q-negative);
+}
+
+.header-bold {
+  font-weight: bold;
+  font-size: 15px;
 }
 </style>

@@ -22,6 +22,7 @@ interface TreeStore {
   addItem: (item: { id: number | string; parent: number | string | null; label: string }) => void;
   removeItem: (id: string) => void;
   updateItem: (updatedItem: { id: number | string; parent: number | string | null; label: string }) => void;
+  resetItems: (items: TreeNode[]) => void;
 }
 
 export const useTreeStore = defineStore('tree', {
@@ -185,6 +186,13 @@ export const useTreeStore = defineStore('tree', {
       this.items = this.items.map(item => 
         item.id === newItem.id ? newItem : item
       );
+    },
+
+    /**
+     * Восстанавливает массив items из истории (для undo/redo)
+     */
+    resetItems(this: TreeStore, items: TreeNode[]) {
+      this.items = items.map(item => ({ ...item }));
     }
   }
 }); 
