@@ -174,8 +174,9 @@ export const useTreeStore = defineStore('tree', {
         }
 
         // Проверка на циклическую зависимость
-        const allParents = this.getAllParents(existingItem.id);
-        if (allParents.some(parent => parent.id === newItem.parent)) {
+        // Если новый родитель — один из потомков текущего элемента, будет цикл
+        const allChildren = this.getAllChildren(existingItem.id);
+        if (allChildren.some(child => child.id === newItem.parent)) {
           throw new Error(`Невозможно установить родителем потомка (создастся циклическая зависимость)`);
         }
       }
